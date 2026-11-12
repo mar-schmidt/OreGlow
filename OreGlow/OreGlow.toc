@@ -1,0 +1,13 @@
+## Interface: 16001
+## Title: OreGlow
+## Notes: A subtle golden screen-edge pulse when nearby ore is exposed by the game, or you hover an ore blip.
+## Author: Marcus
+## Version: 0.1.0
+## SavedVariablesPerCharacter: OreGlowDB
+## IconTexture: Interface\Icons\Trade_Mining
+
+Core.lua
+Catalog.lua
+Glow.lua
+Options.lua
+Main.lua

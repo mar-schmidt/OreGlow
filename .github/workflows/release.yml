@@ -1,0 +1,64 @@
+name: Validate and release
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oreglow-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua 5.1
+        run: sudo apt-get update -qq && sudo apt-get install -y lua5.1
+      - name: Check Lua syntax
+        run: |
+          python3 - <<'PY'
+          import pathlib, subprocess
+          for root in ("OreGlow", "tests"):
+              for path in pathlib.Path(root).glob("*.lua"):
+                  subprocess.run(["luac5.1", "-p", str(path)], check=True)
+          PY
+      - name: Run observation and UI tests
+        run: lua5.1 tests/run.lua
+      - name: Build installation ZIP
+        run: python3 scripts/build_release.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OreGlow-release
+          path: dist/*
+          if-no-files-found: error
+  release:
+    if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: OreGlow-release
+          path: dist
+      - name: Publish a new addon version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(sed -n 's/^## Version: //p' OreGlow/OreGlow.toc)
+          tag="v${version}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Already published. Bump the version to release again."
+            exit 0
+          fi
+          gh release create "$tag" "dist/OreGlow-${version}.zip" dist/SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --title "OreGlow ${version} — test release" \
+            --prerelease --notes-file docs/RELEASE_NOTES.md
